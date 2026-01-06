@@ -1,75 +1,31 @@
 # apps/api/main.py
 
-import os
-import sys
-from fastapi import FastAPI, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List
-
-# ---- Fix imports path ----
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "../.."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
+from fastapi import FastAPI, Depends
 from packages.utils.supabase_client import get_supabase_client
 from packages.utils.auth import get_jwt
 
 app = FastAPI(title="AI Recruiter Agent")
 
-
-# -------------------------
-# Health Check
-# -------------------------
-@app.get("/")
-def health():
-    return {"status": "running"}
-
-
-# -------------------------
-# Request Models
-# -------------------------
-class JobCreate(BaseModel):
-    title: str
-    skills: List[str]
-
-
-# -------------------------
-# Create Job (FIXED)
-# -------------------------
 @app.post("/jobs")
-def create_job(
-    payload: JobCreate,
-    jwt: str = Depends(get_jwt)
-):
+def create_job(payload: dict, jwt: str = Depends(get_jwt)):
     """
-    Creates a job and auto-attaches recruiter_id
-    from authenticated Supabase user (auth.uid)
+    Creates a job owned by the authenticated recruiter
     """
-
     supabase = get_supabase_client(jwt)
 
-    # 🔑 Get current user id from JWT
-    user_res = supabase.auth.get_user(jwt)
+    # 1️⃣ Get authenticated user ID
+    user = supabase.auth.get_user(jwt)
+    recruiter_id = user.user.id
 
-    if not user_res or not user_res.user:
-        raise HTTPException(status_code=401, detail="Invalid user")
+    # 2️⃣ Parse JD → skills (simplified for now)
+    title = "Software Engineer"
+    skills = ["Python", "FastAPI", "SQL"]
 
-    recruiter_id = user_res.user.id
-
-    # ✅ Insert job WITH recruiter_id
-    data = {
-        "title": payload.title,
-        "skills": payload.skills,
+    # 3️⃣ Insert job WITH recruiter_id
+    result = supabase.table("jobs").insert({
+        "title": title,
+        "skills": skills,
         "recruiter_id": recruiter_id
-    }
+    }).execute()
 
-    res = supabase.table("jobs").insert(data).execute()
-
-    if res.error:
-        raise HTTPException(status_code=400, detail=res.error.message)
-
-    return {
-        "message": "Job created successfully",
-        "job": res.data[0]
-    }
+    return result.data
