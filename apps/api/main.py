@@ -1,44 +1,75 @@
 # apps/api/main.py
 
-import sys
 import os
+import sys
+from fastapi import FastAPI, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List
 
+# ---- Fix imports path ----
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "../.."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from fastapi import FastAPI, Depends
 from packages.utils.supabase_client import get_supabase_client
 from packages.utils.auth import get_jwt
-from agents.jd_agent.jd_agent import parse_jd
-from agents.matching_agent.matching_agent import match_candidates
 
 app = FastAPI(title="AI Recruiter Agent")
 
+
+# -------------------------
+# Health Check
+# -------------------------
 @app.get("/")
 def health():
     return {"status": "running"}
 
-# 🔐 Create Job (AUTH REQUIRED)
+
+# -------------------------
+# Request Models
+# -------------------------
+class JobCreate(BaseModel):
+    title: str
+    skills: List[str]
+
+
+# -------------------------
+# Create Job (FIXED)
+# -------------------------
 @app.post("/jobs")
-def create_job(payload: dict, jwt: str = Depends(get_jwt)):
+def create_job(
+    payload: JobCreate,
+    jwt: str = Depends(get_jwt)
+):
+    """
+    Creates a job and auto-attaches recruiter_id
+    from authenticated Supabase user (auth.uid)
+    """
+
     supabase = get_supabase_client(jwt)
 
-    parsed = parse_jd(payload["jd"])
+    # 🔑 Get current user id from JWT
+    user_res = supabase.auth.get_user(jwt)
 
-    res = supabase.table("jobs").insert({
-        "title": parsed["title"],
-        "skills": parsed["skills"],
-        "recruiter_id": "auth.uid()"
-    }).execute()
+    if not user_res or not user_res.user:
+        raise HTTPException(status_code=401, detail="Invalid user")
 
-    return res.data
+    recruiter_id = user_res.user.id
 
-# 🧠 Match logic (no auth required yet)
-@app.post("/match")
-def match(payload: dict):
-    return match_candidates(
-        payload["job"],
-        payload["candidates"]
-    )
+    # ✅ Insert job WITH recruiter_id
+    data = {
+        "title": payload.title,
+        "skills": payload.skills,
+        "recruiter_id": recruiter_id
+    }
+
+    res = supabase.table("jobs").insert(data).execute()
+
+    if res.error:
+        raise HTTPException(status_code=400, detail=res.error.message)
+
+    return {
+        "message": "Job created successfully",
+        "job": res.data[0]
+    }
