@@ -1,12 +1,16 @@
-# packages/utils/auth.py
+from fastapi import Header, HTTPException, status
 
-from fastapi import Header, HTTPException
-
-def get_jwt(authorization: str | None = Header(default=None)):
+def get_jwt(authorization: str | None = Header(default=None)) -> str:
     if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header missing",
+        )
 
     if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid auth header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format",
+        )
 
-    return authorization.replace("Bearer ", "")
+    return authorization.replace("Bearer ", "").strip()

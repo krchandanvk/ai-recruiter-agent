@@ -1,5 +1,3 @@
-# packages/utils/supabase_client.py
-
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -10,7 +8,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-    raise RuntimeError("Supabase env vars missing")
+    raise RuntimeError("SUPABASE_URL or SUPABASE_ANON_KEY missing")
 
 def get_supabase_client(jwt: str | None = None) -> Client:
     headers = {}
@@ -20,5 +18,5 @@ def get_supabase_client(jwt: str | None = None) -> Client:
     return create_client(
         SUPABASE_URL,
         SUPABASE_ANON_KEY,
-        headers=headers
+        headers=headers,
     )
