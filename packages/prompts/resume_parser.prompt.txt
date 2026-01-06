@@ -1,0 +1,2 @@
+Extract candidate skills, experience, and role relevance.
+Return JSON only.

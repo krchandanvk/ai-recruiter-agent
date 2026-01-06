@@ -1,0 +1,2 @@
+Extract job title, skills, experience range, and location from the JD.
+Return JSON only.
